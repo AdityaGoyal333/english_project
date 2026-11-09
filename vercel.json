@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/paths.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{vendor/**,.git/**}"
+    }
+  }
+}

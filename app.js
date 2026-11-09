@@ -218,7 +218,13 @@ async function readingFromApi() {
       note: state.year,
     }),
   });
-  const data = await response.json();
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (err) {
+    throw new Error("The path API did not return JSON. Redeploy so /api/paths is live.");
+  }
   if (!response.ok) throw new Error(data.error || "OpenAI could not write the paths.");
   return data;
 }
