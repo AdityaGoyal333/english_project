@@ -1,15 +1,12 @@
 // Many Figs
-// Order: goal (destination) -> resume + short note (journey) -> three paths.
-// A stall comes only from the note. A resume gap stays a future step.
-// Resume text, including text read from a PDF, never leaves the browser.
+// Goal, then the full resume and the full note, then a graph.
+// Left: what they have already done. Right: the goal.
+// Lanes between them are different trajectories, all ending at that goal.
+// The API key stays on the server. The PDF file is read here and is not uploaded.
 
 const STALL = /\b(fail(?:ed|ure)?|froze|frozen|drop(?:ped)?|quit|stall(?:ed)?|stuck|reject(?:ed)?|did not|didn't|could not|couldn't|missed|gave up|fell through)\b/i;
 
-const state = {
-  goal: "",
-  evidence: [], // { id, text, on } from the resume
-  notes: [], // { id, text, on, bend } from the short note
-};
+const state = { goal: "", resume: "", year: "" };
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -17,10 +14,9 @@ function show(name) {
   document.querySelectorAll("[data-screen]").forEach((el) => {
     el.hidden = el.dataset.screen !== name;
   });
-
   const nav = $(".steps");
   nav.hidden = name === "home";
-  const order = ["goal", "journey", "check", "paths"];
+  const order = ["goal", "journey", "paths"];
   const current = order.indexOf(name);
   nav.querySelectorAll("[data-step]").forEach((li) => {
     const mine = order.indexOf(li.dataset.step);
@@ -29,15 +25,13 @@ function show(name) {
   window.scrollTo(0, 0);
 }
 
-// Turn pasted text into usable lines. Headings like EXPERIENCE are dropped.
 function pieces(text) {
   const lines = text
     .split(/\n+/)
     .map((line) => line.replace(/^[\s\-*•\d.)]+/, "").trim())
     .filter((line) => line.length > 2 && !isHeading(line));
-
   const raw = lines.length >= 2 ? lines : text.split(/(?<=[.!?])\s+/);
-  return raw.map((line) => line.trim()).filter((line) => line.length > 2).slice(0, 8);
+  return raw.map((line) => line.trim()).filter((line) => line.length > 2);
 }
 
 function isHeading(line) {
@@ -60,150 +54,179 @@ function esc(text) {
   }[ch]));
 }
 
-// Read the two journey fields into confirmable facts.
-function parseJourney(resume, year) {
-  state.evidence = pieces(resume).map((text, i) => ({ id: "e" + i, text, on: true }));
-
-  const bits = pieces(year);
-  const bendAt = bits.findIndex((text) => STALL.test(text));
-  state.notes = bits.map((text, i) => ({
-    id: "n" + i,
-    text,
-    on: true,
-    bend: i === bendAt,
-  }));
-}
-
-function renderCheck() {
-  $("#check-goal").textContent = state.goal;
-  $("#evidence-list").innerHTML = state.evidence.length
-    ? state.evidence.map(factRow).join("")
-    : "<p>No resume lines stood out. You can go back and add a few.</p>";
-
-  const noneChecked = state.notes.some((note) => note.bend) ? "" : "checked";
-  const noteRows = state.notes.map((note) => {
-    return factRow(note) + bendChoice(note);
-  }).join("");
-
-  $("#notes-list").innerHTML = state.notes.length
-    ? `<label class="bend-choice"><input type="radio" name="bend" value="none" ${noneChecked} /> No stall</label>` + noteRows
-    : "<p>No note lines stood out. You can go back and add what happened.</p>";
-}
-
-function factRow(item) {
-  return `<label class="item"><input type="checkbox" id="${item.id}" ${item.on ? "checked" : ""} /> <span>${esc(item.text)}</span></label>`;
-}
-
-function bendChoice(note) {
-  return `<label class="bend-choice"><input type="radio" name="bend" value="${note.id}" ${note.bend ? "checked" : ""} /> This step stalled</label>`;
-}
-
-// Pull the checkboxes and the stall radio back into state.
-function readCheck() {
-  state.evidence.forEach((item) => {
-    const box = document.getElementById(item.id);
-    if (box) item.on = box.checked;
-  });
-  const picked = $('input[name="bend"]:checked');
-  const bendId = picked ? picked.value : "none";
-  state.notes.forEach((note) => {
-    const box = document.getElementById(note.id);
-    if (box) note.on = box.checked;
-    note.bend = note.id === bendId && note.on;
-  });
-}
-
-function step(text, kind, source) {
-  return { text, kind, source };
-}
-
-// Three routes, one destination.
-// Direct uses proof they already have.
-// Around keeps going even if the marked stall stays stalled.
-// Longer builds a foundation, then comes back to the same goal.
-function buildPaths() {
-  const goal = state.goal;
-  const done = state.evidence.filter((item) => item.on);
-  const moved = state.notes.filter((note) => note.on && !note.bend);
-  const bend = state.notes.find((note) => note.bend) || null;
-  const proof = done[0];
-  const second = done[1];
-  const recent = moved[0];
-
-  const direct = [];
-  if (proof) direct.push(step(proof.text, "done", "Resume"));
-  if (second) direct.push(step(second.text, "done", "Resume"));
-  if (recent) direct.push(step(recent.text, "done", "This year"));
-  direct.push(step(
-    proof
-      ? `Carry “${shorten(proof.text, 72)}” forward, and do the next small thing “${goal}” asks for.`
-      : `Do one small thing this month that “${goal}” would count as a start.`,
-    "next",
-    "Ahead"
-  ));
-
-  const around = [];
-  if (proof) around.push(step(proof.text, "done", "Resume"));
-  if (bend) {
-    around.push(step(bend.text, "bend", "This year"));
-    around.push(step(
-      `Leave that step where it is. Take a different step that still ends at “${goal}.”`,
-      "next",
-      "Ahead"
-    ));
-    if (recent) {
-      around.push(step(`Use “${shorten(recent.text, 72)}” as the way around it.`, "later", "This year"));
+function wrap(text, width) {
+  const words = shorten(text, 90).split(" ");
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const next = line ? line + " " + word : word;
+    if (next.length > width && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
     }
-  } else {
-    around.push(step(
-      `You did not mark a stall. This route stays open so one failed step later can bend, and “${goal}” stays put.`,
-      "next",
-      "Ahead"
-    ));
-  }
+  });
+  if (line) lines.push(line);
+  return lines.slice(0, 4);
+}
 
-  const longer = [];
-  if (proof) longer.push(step(proof.text, "done", "Resume"));
-  longer.push(step(`Spend a season on the foundation “${goal}” still needs.`, "next", "Ahead"));
-  longer.push(step(
-    proof
-      ? `Then bring “${shorten(proof.text, 72)}” back in, and walk the rest of the way.`
-      : `Then walk toward “${goal}” with that foundation under you.`,
-    "later",
-    "Ahead"
-  ));
-
-  const hereBits = [proof, second, recent].filter(Boolean).map((item) => shorten(item.text, 80));
+// Used only when OpenAI is unavailable. The real request sends the full text.
+function localGraph() {
+  const done = pieces(state.resume).slice(0, 4).map((text) => ({
+    text: shorten(text, 80),
+    source: "Resume",
+  }));
+  const yearLines = pieces(state.year);
+  const stall = yearLines.find((line) => STALL.test(line));
+  const recent = yearLines.find((line) => line !== stall);
+  if (recent) done.push({ text: shorten(recent, 80), source: "This year" });
+  const proof = done[0] ? done[0].text : "what you can do this month";
 
   return {
-    here: hereBits.length
-      ? hereBits.join(" · ")
-      : "No confirmed steps yet. These paths start from the goal alone.",
-    paths: [
-      { title: "Direct", why: "The shortest route that uses what you already have.", steps: direct },
-      { title: "Around", why: "The route that still reaches the goal if one step stalls.", steps: around },
-      { title: "Longer", why: "Foundation first. The same destination.", steps: longer },
+    done: done,
+    trajectories: [
+      {
+        title: "Direct",
+        why: "The shortest use of what you already have.",
+        steps: [{ text: "Use “" + shorten(proof, 42) + "” and take the next small step." }],
+      },
+      {
+        title: "Around",
+        why: "This route still reaches the goal if one step stays stalled.",
+        steps: stall
+          ? [{ text: "Leave this where it is: " + shorten(stall, 70) }, { text: "Continue toward the goal by another step." }]
+          : [{ text: "Keep a side route open, so one failed step cannot close the goal." }],
+      },
+      {
+        title: "Longer",
+        why: "Build the missing foundation, then the same goal.",
+        steps: [{ text: "Spend a season on the foundation the goal still needs." }, { text: "Then walk the rest of the way." }],
+      },
     ],
   };
 }
 
-function renderPaths() {
-  const reading = buildPaths();
-  $("#path-goal").textContent = state.goal;
-  $("#here").textContent = "You are here: " + reading.here;
-  $("#destination").textContent = state.goal;
-  $("#path-grid").innerHTML = reading.paths.map((path) => {
-    const steps = path.steps.map((item) => {
-      return `<li class="step ${item.kind}"><span class="source">${esc(item.source)}</span>${esc(item.text)}</li>`;
-    }).join("");
-    return `<article class="path"><h2>${esc(path.title)}</h2><p class="path-why">${esc(path.why)}</p><ol>${steps}</ol></article>`;
+function curve(x1, y1, x2, y2) {
+  const mid = (x1 + x2) / 2;
+  return `<path d="M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}" class="edge"/>`;
+}
+
+function nodeBox(x, y, w, h, text, kind) {
+  const lines = wrap(text, kind === "goal" ? 18 : 22);
+  const start = y + (h - lines.length * 14) / 2 + 11;
+  const labels = lines.map((line, i) => {
+    return `<text x="${x + w / 2}" y="${start + i * 14}" text-anchor="middle" class="label ${kind}">${esc(line)}</text>`;
   }).join("");
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" class="node ${kind}"/>${labels}`;
+}
+
+// Left column is the past. Each lane is one trajectory. One goal sits on the right.
+function renderGraph(reading) {
+  const done = (reading.done || []).slice(0, 6);
+  const lanes = (reading.trajectories || []).slice(0, 4);
+  const nodeW = 150;
+  const goalW = 160;
+  const nodeH = 84;
+  const gapX = 28;
+  const pad = 12;
+  const maxSteps = Math.max(1, ...lanes.map((lane) => lane.steps.length));
+  const past = done.length ? done : [{ text: "You are here", source: "" }];
+
+  const donePitch = nodeH + 14;
+  const lanePitch = nodeH + 40;
+  const doneH = past.length * donePitch - 14;
+  const lanesH = lanes.length * lanePitch - 16;
+  const height = pad * 2 + Math.max(doneH, lanesH, nodeH);
+  const width = pad + nodeW + gapX + maxSteps * (nodeW + gapX) + gapX + goalW + pad;
+
+  const doneTop = (height - doneH) / 2;
+  const lanesTop = (height - lanesH) / 2;
+  const goalX = width - pad - goalW;
+  const goalY = (height - nodeH) / 2;
+  const railX = pad + nodeW + gapX / 2;
+
+  const donePos = past.map((item, i) => ({
+    x: pad,
+    y: doneTop + i * donePitch,
+    text: item.text,
+  }));
+  const lanePos = lanes.map((lane, i) => {
+    const y = lanesTop + i * lanePitch + 16;
+    return {
+      title: lane.title,
+      why: lane.why,
+      y: y,
+      steps: lane.steps.map((step, s) => ({
+        x: pad + nodeW + gapX + s * (nodeW + gapX),
+        y: y,
+        text: step.text,
+      })),
+    };
+  });
+
+  const edges = [];
+  const railTop = donePos[0].y + nodeH / 2;
+  const railBot = donePos[donePos.length - 1].y + nodeH / 2;
+  edges.push(`<path d="M ${railX} ${railTop} L ${railX} ${railBot}" class="edge"/>`);
+  donePos.forEach((item) => {
+    const y = item.y + nodeH / 2;
+    edges.push(`<path d="M ${item.x + nodeW} ${y} L ${railX} ${y}" class="edge"/>`);
+  });
+  lanePos.forEach((lane) => {
+    const first = lane.steps[0];
+    edges.push(curve(railX, (railTop + railBot) / 2, first.x, first.y + nodeH / 2));
+    lane.steps.forEach((step, i) => {
+      if (i === 0) return;
+      const prev = lane.steps[i - 1];
+      edges.push(curve(prev.x + nodeW, prev.y + nodeH / 2, step.x, step.y + nodeH / 2));
+    });
+    const last = lane.steps[lane.steps.length - 1];
+    edges.push(curve(last.x + nodeW, last.y + nodeH / 2, goalX, goalY + nodeH / 2));
+  });
+
+  const boxes = donePos.map((item) => nodeBox(item.x, item.y, nodeW, nodeH, item.text, "done")).join("");
+  const steps = lanePos.map((lane) => {
+    const title = `<text x="${lane.steps[0].x}" y="${lane.y - 8}" class="lane-title">${esc(lane.title)}</text>`;
+    const nodes = lane.steps.map((step) => nodeBox(step.x, step.y, nodeW, nodeH, step.text, "step")).join("");
+    const tip = esc(lane.why || lane.title);
+    return `<g><title>${tip}</title>${title}${nodes}</g>`;
+  }).join("");
+  const goalBox = nodeBox(goalX, goalY, goalW, nodeH, state.goal, "goal");
+
+  const desc = lanes.map((lane) => lane.title + ": " + lane.steps.map((step) => step.text).join(", ")).join(". ");
+  $("#graph").setAttribute("viewBox", `0 0 ${width} ${height}`);
+  $("#graph").innerHTML = `
+    <title id="graph-title">Trajectories from what you have done to your goal</title>
+    <desc id="graph-desc">${esc(desc)}</desc>
+    ${edges.join("")}
+    ${boxes}
+    ${steps}
+    ${goalBox}
+  `;
+  $("#path-goal").textContent = state.goal;
+}
+
+// The whole goal, the whole resume, and the whole note. Nothing is cut down first.
+async function readingFromApi() {
+  const response = await fetch("/api/paths", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      goal: state.goal,
+      resume: state.resume,
+      note: state.year,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "OpenAI could not write the paths.");
+  return data;
 }
 
 function clearAll() {
   state.goal = "";
-  state.evidence = [];
-  state.notes = [];
+  state.resume = "";
+  state.year = "";
   $("#goal").value = "";
   $("#resume").value = "";
   $("#year").value = "";
@@ -215,9 +238,7 @@ function clearAll() {
 $("#begin").addEventListener("click", () => show("goal"));
 $("#goal-back").addEventListener("click", () => show("home"));
 $("#journey-back").addEventListener("click", () => show("goal"));
-$("#check-back").addEventListener("click", () => show("journey"));
-$("#edit").addEventListener("click", () => show("check"));
-
+$("#edit").addEventListener("click", () => show("journey"));
 $("#restart").addEventListener("click", () => {
   clearAll();
   show("home");
@@ -235,13 +256,11 @@ $("#goal-form").addEventListener("submit", (event) => {
   show("journey");
 });
 
-// Read a PDF locally. Words on the same visual line stay together.
 async function readPdf(file) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("vendor/pdf.worker.min.js", document.baseURI).href;
   const data = new Uint8Array(await file.arrayBuffer());
   const pdf = await pdfjsLib.getDocument({ data }).promise;
   const pages = [];
-
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
@@ -254,7 +273,6 @@ function linesFromPdfItems(items) {
   const lines = [];
   let currentY = null;
   let parts = [];
-
   items.forEach((item) => {
     if (!item.str || !item.str.trim()) return;
     const y = item.transform ? Math.round(item.transform[5]) : 0;
@@ -265,7 +283,6 @@ function linesFromPdfItems(items) {
     currentY = y;
     parts.push(item.str);
   });
-
   if (parts.length) lines.push(parts.join(" ").replace(/\s+/g, " ").trim());
   return lines.filter(Boolean).join("\n");
 }
@@ -281,7 +298,6 @@ $("#resume-file").addEventListener("change", async () => {
   const file = $("#resume-file").files[0];
   const hint = $("#file-hint");
   if (!file) return;
-
   hint.textContent = "Reading " + file.name + "…";
   try {
     const text = (await readResumeFile(file)).trim();
@@ -296,7 +312,7 @@ $("#resume-file").addEventListener("change", async () => {
   }
 });
 
-$("#journey-form").addEventListener("submit", (event) => {
+$("#journey-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const resume = $("#resume").value.trim();
   const year = $("#year").value.trim();
@@ -305,15 +321,26 @@ $("#journey-form").addEventListener("submit", (event) => {
     return;
   }
   $("#journey-error").hidden = true;
-  parseJourney(resume, year);
-  renderCheck();
-  show("check");
-});
+  state.resume = resume;
+  state.year = year;
 
-$("#check-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  readCheck();
-  renderPaths();
+  const button = event.submitter;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Drawing the paths…";
+  }
+  try {
+    renderGraph(await readingFromApi());
+    $("#path-note").textContent = "Written by OpenAI from your goal, your full resume, and your note.";
+  } catch (err) {
+    renderGraph(localGraph());
+    $("#path-note").textContent = err.message + " Showing a local map instead.";
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Draw the paths";
+    }
+  }
   show("paths");
 });
 

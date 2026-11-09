@@ -166,8 +166,6 @@ fieldset {
 
 .goal-line { margin-bottom: 0; }
 
-.here { max-width: 40rem; }
-
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -176,6 +174,7 @@ fieldset {
   padding: 0;
   list-style: none;
   font-size: 0.9rem;
+  color: var(--muted);
 }
 
 .swatch {
@@ -187,61 +186,35 @@ fieldset {
   vertical-align: middle;
 }
 
-.swatch.done, .step.done { background: transparent; }
 .swatch.done { background: var(--leaf); }
-.swatch.bend { background: var(--bruise); }
 .swatch.next { background: var(--fig); }
+.swatch.goal { background: var(--ink); }
 
-.paths {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  align-items: stretch;
+.map-scroll {
+  overflow-x: auto;
+  margin-top: 0.5rem;
 }
 
-.path {
-  margin: 0;
-  padding: 1rem 1rem 0.25rem;
-  border-top: 1px solid var(--rule);
-}
-
-.path h2 {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 1.6rem;
-  font-weight: 500;
-}
-
-.path-why { margin: 0.25rem 0 1rem; font-size: 0.95rem; }
-
-.path ol { margin: 0; padding: 0; list-style: none; }
-
-.step {
-  margin: 0 0 0.85rem;
-  padding-left: 0.85rem;
-  border-left: 3px solid var(--fig);
-}
-
-.step.done { border-left-color: var(--leaf); }
-.step.bend { border-left-color: var(--bruise); }
-.step.later { border-left-color: var(--rule); }
-
-.source {
+#graph {
+  width: 100%;
+  min-width: 640px;
+  height: auto;
   display: block;
-  margin-bottom: 0.15rem;
-  font-size: 0.75rem;
+}
+
+#graph .edge { fill: none; stroke: var(--rule); stroke-width: 1.5; }
+#graph .node { fill: var(--paper); stroke-width: 1.5; }
+#graph .node.done { stroke: var(--leaf); }
+#graph .node.step { stroke: var(--fig); }
+#graph .node.goal { fill: var(--ink); stroke: var(--ink); }
+#graph .label { font-family: var(--sans); font-size: 12px; fill: var(--ink); }
+#graph .label.goal { fill: var(--paper); }
+#graph .lane-title {
+  font-family: var(--sans);
+  font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted);
-}
-
-.destination {
-  margin: 0.5rem 0 0;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ink);
-  font-family: var(--serif);
-  font-size: 1.5rem;
-  text-align: center;
+  fill: var(--muted);
 }
 
 footer {
