@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Many Figs</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="arc" aria-hidden="true"></div>
+    <p class="brand">Many Figs</p>
+    <p class="tag">One fig can fall. The branch keeps fruiting.</p>
+  </header>
+
+  <!-- Goal, journey, check, paths. Hidden on the opening screen. -->
+  <nav class="steps" aria-label="Progress" hidden>
+    <ol>
+      <li data-step="goal">Goal</li>
+      <li data-step="journey">Journey</li>
+      <li data-step="check">Check</li>
+      <li data-step="paths">Paths</li>
+    </ol>
+  </nav>
+
+  <main>
+    <section data-screen="home">
+      <h1>The goal stays. The road can bend.</h1>
+      <p class="lead">
+        Name what you want to reach. Then add your resume and a short note
+        about the road so far. Many Figs draws different paths that still end
+        at that same goal.
+      </p>
+      <button type="button" id="begin" class="primary">Begin</button>
+    </section>
+
+    <section data-screen="goal" hidden>
+      <h1>What do you want to reach?</h1>
+      <p class="lead">This sentence is the destination. Every path ends here.</p>
+      <form id="goal-form">
+        <label for="goal">Your goal</label>
+        <textarea id="goal" name="goal" rows="3" required placeholder="Become a doctor"></textarea>
+        <p class="error" id="goal-error" role="alert" hidden>Write the goal first. The paths need a destination.</p>
+        <div class="row">
+          <button type="button" id="goal-back" class="ghost">Back</button>
+          <button type="submit" class="primary">Continue</button>
+        </div>
+      </form>
+    </section>
+
+    <section data-screen="journey" hidden>
+      <h1>Where have you already walked?</h1>
+      <p class="lead">The resume is the long record. The note is the recent road, including anything that stalled.</p>
+      <form id="journey-form">
+        <label for="resume">Resume</label>
+        <textarea id="resume" name="resume" rows="8" required placeholder="Paste jobs, projects, and skills."></textarea>
+        <label class="file" for="resume-file">Or choose a PDF or .txt file
+          <input id="resume-file" type="file" accept=".pdf,.txt,.md,.text,application/pdf,text/plain" />
+        </label>
+        <p class="hint" id="file-hint" role="status"></p>
+
+        <label for="year">Short note</label>
+        <textarea id="year" name="year" rows="6" required placeholder="What have you already done toward this, and what happened along the way? Include the part that stalled."></textarea>
+
+        <p class="error" id="journey-error" role="alert" hidden>Add both the resume and the note. The paths are drawn from those words.</p>
+        <div class="row">
+          <button type="button" id="journey-back" class="ghost">Back</button>
+          <button type="submit" class="primary">Check what we read</button>
+        </div>
+      </form>
+    </section>
+
+    <section data-screen="check" hidden>
+      <h1>Check what we are using.</h1>
+      <p class="lead">Uncheck anything wrong. Mark the stall, if there is one. A resume gap is remaining distance. A stall is only something you wrote.</p>
+      <form id="check-form">
+        <p class="goal-line">Goal: <strong id="check-goal"></strong></p>
+        <fieldset>
+          <legend>From the resume</legend>
+          <div id="evidence-list"></div>
+        </fieldset>
+        <fieldset>
+          <legend>From the note</legend>
+          <div id="notes-list"></div>
+        </fieldset>
+        <div class="row">
+          <button type="button" id="check-back" class="ghost">Back</button>
+          <button type="submit" class="primary">Show the paths</button>
+        </div>
+      </form>
+    </section>
+
+    <section data-screen="paths" hidden>
+      <h1 id="path-goal"></h1>
+      <p class="here" id="here"></p>
+      <ul class="legend">
+        <li><span class="swatch done"></span> Already walked</li>
+        <li><span class="swatch bend"></span> The stall</li>
+        <li><span class="swatch next"></span> Still ahead</li>
+      </ul>
+      <div id="path-grid" class="paths"></div>
+      <p class="destination" id="destination"></p>
+      <div class="row">
+        <button type="button" id="edit" class="ghost">Edit what we used</button>
+        <button type="button" id="restart" class="primary">Start over</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Paths are drawn from the words you confirmed. Nothing is sent to a server.</p>
+  </footer>
+
+  <!-- PDF.js runs in the browser. The resume file is not uploaded. -->
+  <script src="vendor/pdf.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
